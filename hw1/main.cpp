@@ -14,7 +14,7 @@ typedef std::vector<element_type> matrix;
 
 int main()
 {
-	std::vector<cl::Platform> platforms;
+   std::vector<cl::Platform> platforms;
    std::vector<cl::Device> devices;
    std::vector<cl::Kernel> kernels;
 
@@ -45,17 +45,17 @@ int main()
       // create a message to send to kernel
       
       
-		std::ifstream inputFile("input.txt");
-		size_t input_width = 0;
-		size_t mask_width = 0;
-		inputFile >> input_width >> mask_width;
+      std::ifstream inputFile("input.txt");
+      size_t input_width = 0;
+      size_t mask_width = 0;
+      inputFile >> input_width >> mask_width;
       size_t input_size = input_width * input_width;
       size_t mask_size = mask_width * mask_width;
       matrix input(input_size);
       matrix mask(mask_size);
       size_t result_size = input_size;
       matrix result(result_size);
-		for (size_t i = 0; i < input_size; i++) {
+      for (size_t i = 0; i < input_size; i++) {
          inputFile >> input[i];
       }
       for (size_t i = 0; i < mask_size; i++) {
@@ -74,9 +74,9 @@ int main()
       queue.enqueueWriteBuffer(dev_b, CL_TRUE, 0, sizeof(element_type) * mask_size, &mask[0]);
 
       // load named kernel from opencl source
-		cl::Kernel kernel(program, "convolution_2D");
-		cl::KernelFunctor convolution_2D(kernel, queue, cl::NullRange, cl::NDRange(input_width, input_width), cl::NullRange);
-		cl::Event event = convolution_2D(dev_a, dev_b, dev_c, (int)input_width, (int)mask_width);
+      cl::Kernel kernel(program, "convolution_2D");
+      cl::KernelFunctor convolution_2D(kernel, queue, cl::NullRange, cl::NDRange(input_width, input_width), cl::NullRange);
+      cl::Event event = convolution_2D(dev_a, dev_b, dev_c, (int)input_width, (int)mask_width);
       event.wait();
 
       queue.enqueueReadBuffer(dev_c, CL_TRUE, 0, sizeof(element_type) * result_size, &result[0]);
