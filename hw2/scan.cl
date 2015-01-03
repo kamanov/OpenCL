@@ -55,7 +55,7 @@ __kernel void scan_blelloch(__global float * a, __global float * r, __global flo
 }
 
 
-__kernel void add_aux(__global int * aux, __global int * out, int n)
+__kernel void add_aux(__global float * aux, __global float * out, int n)
 {
     uint gid = get_global_id(0);
     uint group_id = get_group_id(0);
