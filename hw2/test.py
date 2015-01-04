@@ -37,6 +37,9 @@ def main():
     if len(sys.argv) < 2:
         print("usage : ./test.py executable_name")
         return
+    if len(sys.argv) > 2:
+        test(int(sys.argv[2]))
+        return
     test(5)
     n = 48576;
     while(n <= 1048576):
