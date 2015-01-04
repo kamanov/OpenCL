@@ -8,9 +8,9 @@
 #include <iomanip>
 #include <iterator>
 #include <cmath>
-#include <string>
-#include <sstream>
 
+typedef float element_type;
+typedef std::vector<element_type> array;
 static const size_t block_size = 256;
 
 struct GpuContext {
@@ -24,41 +24,36 @@ struct GpuContext {
     {}
 };
 
-
 size_t roundToBlockSize(size_t val) {
     return std::ceil((double)val / block_size);
 }
 
-template<typename T>
-void scan(GpuContext& gpuContext, cl::Buffer& in, cl::Buffer& out, size_t input_size, const std::string& type_name) {
+void scan(GpuContext& gpuContext, cl::Buffer& in, cl::Buffer& out, size_t input_size) {
     size_t blocks_num = roundToBlockSize(input_size);
     // allocate auxiliary buffer
-    cl::Buffer dev_aux(gpuContext.context, CL_MEM_READ_WRITE,  sizeof(T) * blocks_num);
+    cl::Buffer dev_aux(gpuContext.context, CL_MEM_READ_WRITE,  sizeof(element_type) * blocks_num);
     size_t rounded_size = blocks_num * block_size;
     // load named kernel from opencl source
-    std::string scan_name = std::string("scan_blelloch_") + type_name;
-    cl::Kernel kernel_b(gpuContext.program, scan_name.c_str());
+    cl::Kernel kernel_b(gpuContext.program, "scan_blelloch");
     cl::KernelFunctor scan_b(kernel_b, gpuContext.queue, cl::NullRange, cl::NDRange(rounded_size), cl::NDRange(block_size));
-    cl::Event event = scan_b(in, out, dev_aux, cl::__local(sizeof(T) * block_size), input_size);
+    cl::Event event = scan_b(in, out, dev_aux, cl::__local(sizeof(element_type) * block_size), input_size);
     event.wait();
     
     if (blocks_num == 1) return;
    
-    cl::Buffer dev_scan_aux(gpuContext.context, CL_MEM_READ_WRITE,  sizeof(T) * blocks_num);
     // scan aux buffer
-    scan<T>(gpuContext, dev_aux, dev_scan_aux, blocks_num, type_name);
+    scan(gpuContext, dev_aux, dev_aux, blocks_num);
     
     // add aux buffer to out
-    std::string add_name = std::string("add_aux_") + type_name;
-    cl::Kernel kernel_add(gpuContext.program, add_name.c_str());
+    cl::Kernel kernel_add(gpuContext.program, "add_aux");
     cl::KernelFunctor add_aux(kernel_add, gpuContext.queue, cl::NullRange, cl::NDRange(rounded_size), cl::NDRange(block_size));
-    cl::Event addEvent = add_aux(dev_scan_aux, out, input_size);
+    cl::Event addEvent = add_aux(dev_aux, out, input_size);
     addEvent.wait(); 
 }
 
-template<typename T>
-void exec(std::vector<T>& input, const std::string& type_name) {
-    typedef std::vector<T> array;
+
+int main()
+{
     std::vector<cl::Platform> platforms;
     std::vector<cl::Device> devices;
     std::vector<cl::Kernel> kernels;
@@ -86,21 +81,27 @@ void exec(std::vector<T>& input, const std::string& type_name) {
         // compile opencl source
         program.build(devices);
       
-
+        // read input file
+        std::ifstream inputFile("input.txt");
+        size_t input_size;
+        inputFile >> input_size;
 	  
-        size_t input_size = input.size();
+        array input(input_size);
         size_t result_size = input_size;
         array result(result_size);
+        for (size_t i = 0; i < input_size; i++) {
+            inputFile >> input[i];
+        } 
 	  
         // allocate device buffer to hold message
-        cl::Buffer dev_in(context, CL_MEM_READ_ONLY,  sizeof(T) * input_size);
-        cl::Buffer dev_out(context, CL_MEM_READ_WRITE, sizeof(T) * result_size);
+        cl::Buffer dev_in(context, CL_MEM_READ_ONLY,  sizeof(element_type) * input_size);
+        cl::Buffer dev_out(context, CL_MEM_READ_WRITE, sizeof(element_type) * result_size);
 
         // copy from cpu to gpu
-        queue.enqueueWriteBuffer(dev_in, CL_TRUE, 0, sizeof(T) * input_size, &input[0]);	
+        queue.enqueueWriteBuffer(dev_in, CL_TRUE, 0, sizeof(element_type) * input_size, &input[0]);	
         GpuContext gpuContext(context, queue, program);
-        scan<T>(gpuContext, dev_in, dev_out, input_size, type_name);
-        queue.enqueueReadBuffer(dev_out, CL_TRUE, 0, sizeof(T) * result_size, &result[0]);
+        scan(gpuContext, dev_in, dev_out, input_size);
+        queue.enqueueReadBuffer(dev_out, CL_TRUE, 0, sizeof(element_type) * result_size, &result[0]);
 		
         //print result
         std::ofstream outputFile("output.txt");
@@ -112,35 +113,6 @@ void exec(std::vector<T>& input, const std::string& type_name) {
     {
         std::cout << std::endl << e.what() << " : " << e.err() << std::endl;
     }
-    
-    
-}
-
-
-int main()
-{
-    // read input file
-    std::ifstream inputFile("input.txt");
-    size_t input_size;
-    inputFile >> input_size;
-    inputFile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    std::string data;
-    std::getline(inputFile, data);
-    bool is_float = data.find('.') != std::string::npos;
-    std::stringstream stream(data);
-    if (is_float) {
-        std::vector<float> input(input_size);
-        for (size_t i = 0; i < input_size; i++) {
-            stream >> input[i];
-        } 
-        exec<float>(input, "float");
-    } else {
-        std::vector<int> input(input_size);
-        for (size_t i = 0; i < input_size; i++) {
-            stream >> input[i];
-        } 
-        exec<int>(input, "int");
-    }
-
+   
     return 0;
 }
