@@ -105,6 +105,7 @@ int main()
 		
         //print result
         std::ofstream outputFile("output.txt");
+        outputFile << std::fixed << std::setprecision(3);
         for (size_t i = 0; i < result_size; i++) {
             outputFile << result[i] << " ";
         }
